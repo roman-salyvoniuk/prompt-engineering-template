@@ -14,10 +14,16 @@ export function useLibrary(statusFilter?: PlayStatus) {
   const {
     data: entries = [],
     isLoading: isLibraryLoading,
+    isError: isLibraryError,
     refetch: refetchLibrary,
   } = useGetLibraryQuery(statusFilter, { skip: !isAuthenticated });
 
-  const { data: stats, isLoading: isStatsLoading } = useGetUserStatsQuery(undefined, {
+  const {
+    data: stats,
+    isLoading: isStatsLoading,
+    isError: isStatsError,
+    refetch: refetchStats,
+  } = useGetUserStatsQuery(undefined, {
     skip: !isAuthenticated,
   });
 
@@ -53,12 +59,16 @@ export function useLibrary(statusFilter?: PlayStatus) {
     entries,
     stats,
     isLoading: isLibraryLoading || isStatsLoading,
+    isError: isLibraryError || isStatsError,
     isMutating: isAdding || isUpdating || isRemoving,
     addToLibrary,
     updateEntry,
     removeEntry,
     isInLibrary,
     getEntryForGame,
-    refetchLibrary,
+    refetchLibrary: () => {
+      refetchLibrary();
+      refetchStats();
+    },
   };
 }

@@ -42,14 +42,15 @@ npm run dev
 ## 🌟 Core Features
 
 - **Extensive Catalog**: Over **2,279 games** with titles, high-resolution cover artwork, descriptions, release years, genres, platforms, and developers.
-- **Search & Multi-Filtering**: Real-time title search combined with genre and platform filter chips.
+- **Server Pagination, Sorting & Discovery**: Debounced title/developer search, genre and platform filter chips, server-side pagination (`/api/games/paginated`), sorting (newest, oldest, A–Z), and a **"Surprise Me"** random game picker (`/api/games/random`).
 - **Personal Library Tracker**:
   - Add games with default status: *"Want to Play"*.
   - Track progress: *"Want to Play"* $\rightarrow$ *"Playing"* $\rightarrow$ *"Completed"*.
-  - Personal 1–10 star/score ratings.
-  - Remove games from library without modifying global catalog.
-- **User Dashboard & Statistics**: Real-time calculated metrics: total games, counts per status category, and average personal rating.
-- **Authentication & Tenant Isolation**: Secure user registration, login with JWT bearer tokens, and strict isolation between users' private libraries.
+  - Personal 1–10 ratings (with explicit clear support), personal notes/reviews (up to 1,000 chars), and favorite toggles.
+  - Export personal library as JSON or CSV, and import JSON collections (`skip_existing` or `overwrite`).
+  - Remove games from library via accessible confirmation dialogs without modifying the global catalog.
+- **User Dashboard & Analytics**: Real-time calculated metrics: total games, status breakdown progress bar, favorites count, rated count, completion rate, average personal rating, and top genres.
+- **Authentication & Tenant Isolation**: Secure registration and login with stateless HMAC-SHA256 bearer tokens and strict tenant isolation between users' private libraries.
 - **Dark & Light Mode**: Seamless theme switching with persistent user preference.
 
 ---
@@ -89,13 +90,11 @@ flowchart TD
 
 ```text
 ├── .agents/                    # Antigravity AI Agent configuration
-│   ├── hooks.json              # Full-lifecycle hooks (PreToolUse, PostToolUse, PreInvocation, Stop)
-│   ├── rules/                  # Modular scoped architecture and style rules
-│   │   ├── backend-architecture.md
-│   │   ├── frontend-architecture.md
-│   │   └── coding-style.md
-│   ├── scripts/                # Hook execution handlers (hook_handler.py)
-│   └── skills/                 # Agent domain skills (api-testing, run-app)
+│   ├── hooks.json              # Lifecycle hooks (SessionStart, PreToolUse, PostToolUse, Stop)
+│   ├── plugins/                # Workspace MCP plugins (gamelibrary-atlassian)
+│   ├── rules/                  # Modular scoped architecture, style, and communication rules
+│   ├── scripts/                # Hook handlers & quality gate (hook_handler.py, hook_guards.py, quality_checks.py)
+│   └── skills/                 # Agent domain skills (api-testing, run-app, quality-gate, etc.)
 ├── backend/                    # FastAPI Backend
 │   ├── app/
 │   │   ├── main.py             # FastAPI entry point & CORS configuration
@@ -151,9 +150,10 @@ Test suite coverage:
 ## 🤖 Antigravity AI Agent System
 
 This project is configured with a modern, modular agent infrastructure:
-- **Modular Rules** (`.agents/rules/`): Automatically applied based on the working directory (`backend/**` vs `frontend/**`).
+- **Modular Rules** (`.agents/rules/`): Scoped glob rules (`backend/**`, `frontend/**`, `docs/**`) plus `communication-style.md` (`always_on`).
+- **Workspace Plugin** (`.agents/plugins/gamelibrary-atlassian/`): Optional Atlassian MCP server configuration bundled as a toggleable Antigravity plugin.
 - **Lifecycle Hooks** (`.agents/hooks.json`):
-  - **`PreToolUse`**: Security guard preventing destructive system commands and protecting sensitive files (`.git/`, `.env`, `games.json`).
-  - **`PostToolUse`**: Automated Python syntax checks, JSON store integrity verification, and audit logging.
-  - **`PreInvocation`**: Dynamic context injection with real-time server and database metrics.
-  - **`Stop`**: Quality gate ensuring database files are undamaged before concluding tasks.
+  - **`SessionStart`**: One-time context injection with real-time catalog count and backend health.
+  - **`PreToolUse`**: Security guard across native (`write_file`, `edit_file`, `run_command`) and legacy tools blocking destructive commands, secret leaks, and `games.json` truncation.
+  - **`PostToolUse`**: Automated Python syntax/Ruff/Mypy and frontend Oxlint/Prettier audits plus session dirty tracking.
+  - **`Stop`**: Dirty-gated quality gate ensuring catalog integrity, static checks, and isolated smoke tests pass when workspace files changed.

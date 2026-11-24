@@ -8,10 +8,11 @@ description: >-
 
 Procedures and invariants for interacting with the file-based persistence layer under `backend/data/`.
 
-## Data Stores
-- `backend/data/games.json`: Global catalog of 2,279 games. **IMMUTABLE** during normal operations.
-- `backend/data/users.json`: Registered users with salted password hashes (`hashlib.pbkdf2_hmac`).
-- `backend/data/libraries.json`: User library tracking entries (`user_id`, `game_id`, `status`, `rating`, `notes`, `updated_at`).
+## Data Stores & Path Resolution
+- Data directory is resolved via `app.utils.paths.get_data_dir()`, honoring `GAMELIBRARY_DATA_DIR` when set (used for isolated automated testing).
+- `backend/data/games.json`: Global catalog of 2,279 games. **IMMUTABLE** during normal operations; cached in memory by `(st_mtime_ns, st_size)` in `GameRepository`.
+- `backend/data/users.json`: Registered users with salted PBKDF2 password hashes (`hashlib.pbkdf2_hmac`).
+- `backend/data/libraries.json`: User library tracking entries (`user_id`, `game_id`, `status`, `rating`, `notes`, `is_favorite`, `created_at`, `updated_at`).
 
 ## Invariant Rules
 1. **Never wipe or truncate `games.json`**:

@@ -19,10 +19,11 @@ Implement strictly from core types out to API endpoints:
 1. **Types (`backend/app/types/<feature>.py`)**:
    - Define strong ID types (e.g. `NewEntityId = NewType("NewEntityId", str)`) or Enums.
 2. **Models (`backend/app/models/<feature>.py`)**:
-   - Pydantic v2 schemas: `*Request` (incoming validation), `*InDb` (file store schema), `*Response` (outgoing DTO).
+   - Pydantic v2 schemas: `*Request` (incoming validation; use `req.model_fields_set` in services when partial PATCH updates allow clearing fields to `None`), `*InDb` (file store schema), `*Response` (outgoing DTO).
 3. **Repository (`backend/app/repositories/<feature>_repository.py`)**:
    - Encapsulate file persistence with `app.utils.json_store` (`read_list_file`, `write_list_file`).
    - Implement query, filter, get, create, update, delete methods.
+   - Put literal sub-routes (e.g., `/paginated`, `/random`, `/export`, `/import`) before parameterized routes (`/{id}`) in routers.
 4. **Service (`backend/app/services/<feature>_service.py`)**:
    - Pure business logic, validations, HTTPException raising (with status codes).
    - Coordinate repositories; never directly touch files.

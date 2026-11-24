@@ -3,9 +3,10 @@ into backend/data/games.json, while preserving curated titles.
 """
 
 import json
-from pathlib import Path
 import re
 import uuid
+from pathlib import Path
+
 import httpx
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -128,9 +129,7 @@ def normalize_freetogame_genre(raw_genre: str) -> list[str]:
     return mapping.get(genre, [genre])
 
 
-def normalize_platforms(
-    developer: str, publisher: str, positive_reviews: int = 0
-) -> list[str]:
+def normalize_platforms(developer: str, publisher: str, positive_reviews: int = 0) -> list[str]:
     platforms = ["PC"]
     dev_pub = f"{developer} {publisher}".lower()
     multiplatform_publishers = [
@@ -151,10 +150,7 @@ def normalize_platforms(
         "xbox",
         "fromsoftware",
     ]
-    if (
-        any(pub in dev_pub for pub in multiplatform_publishers)
-        or positive_reviews > 80000
-    ):
+    if any(pub in dev_pub for pub in multiplatform_publishers) or positive_reviews > 80000:
         platforms.extend(["PlayStation", "Xbox"])
     return platforms
 
@@ -166,7 +162,7 @@ def import_games():
     # 1. Load curated games from existing file
     if GAMES_FILE.exists():
         try:
-            with open(GAMES_FILE, "r", encoding="utf-8") as f:
+            with open(GAMES_FILE, encoding="utf-8") as f:
                 existing_list = json.load(f)
             # Find curated games (like Witcher 3, Cyberpunk, Breath of the Wild, etc.)
             for g in existing_list:
@@ -203,9 +199,7 @@ def import_games():
     ) as client:
         for query_genre, label in genres_to_fetch:
             try:
-                res = client.get(
-                    f"https://steamspy.com/api.php?request=genre&genre={query_genre}"
-                )
+                res = client.get(f"https://steamspy.com/api.php?request=genre&genre={query_genre}")
                 if res.status_code == 200:
                     data = res.json()
                     for aid in data.keys():
@@ -219,9 +213,7 @@ def import_games():
         steam_games_raw = {}
         for page in [0, 1]:
             try:
-                res = client.get(
-                    f"https://steamspy.com/api.php?request=all&page={page}"
-                )
+                res = client.get(f"https://steamspy.com/api.php?request=all&page={page}")
                 if res.status_code == 200:
                     data = res.json()
                     steam_games_raw.update(data)
@@ -338,9 +330,7 @@ def import_games():
                 "genres": normalize_freetogame_genre(item.get("genre", "Action")),
                 "platforms": platforms,
                 "release_year": year,
-                "developer": item.get("developer")
-                or item.get("publisher")
-                or "Unknown Developer",
+                "developer": item.get("developer") or item.get("publisher") or "Unknown Developer",
             }
         )
         ftg_added += 1

@@ -110,6 +110,8 @@ Stores user library entries (associations between users and games):
     "game_id": "c1f73b64-88a2-4a0b-9689-53e7f4c54780",
     "status": "playing",
     "rating": 9,
+    "notes": "Favorite dark fantasy RPG",
+    "is_favorite": true,
     "created_at": "2026-09-22T10:00:00Z",
     "updated_at": "2026-09-22T10:15:00Z"
   }
@@ -136,16 +138,20 @@ Stores registered user credentials:
 
 | Endpoint | Method | Auth Required | Request Body | Status | Description |
 |----------|--------|---------------|--------------|--------|-------------|
-| `/api/auth/register` | `POST` | No | `UserRegisterRequest` (`username`, `email`, `password`) | `201 Created`<br>`409 Conflict`<br>`422 Unprocessable` | Register new user account |
-| `/api/auth/login` | `POST` | No | `UserLoginRequest` (`email`, `password`) | `200 OK`<br>`401 Unauthorized` | Authenticate user & return session/token |
+| `/api/auth/register` | `POST` | No | `UserRegisterRequest` (`username`, `email`, `password`) | `201 Created`<br>`409 Conflict`<br>`422 Unprocessable` | Register new user account and issue HMAC-SHA256 token |
+| `/api/auth/login` | `POST` | No | `UserLoginRequest` (`email`, `password`) | `200 OK`<br>`401 Unauthorized` | Authenticate user & return stateless HMAC-SHA256 token |
 | `/api/auth/me` | `GET` | Yes | None | `200 OK`<br>`401 Unauthorized` | Return current authenticated user profile |
-| `/api/games` | `GET` | No | Query: `search?`, `genre?`, `platform?`, `sort?` | `200 OK` | List catalog games with search/filter |
+| `/api/games` | `GET` | No | Query: `search?`, `genre?`, `platform?`, `sort_by?` | `200 OK` | List catalog games with search/filter/sort |
+| `/api/games/paginated` | `GET` | No | Query: `search?`, `genre?`, `platform?`, `sort_by?`, `page`, `page_size` | `200 OK` | Server-paginated catalog response (`PaginatedGamesResponse`) |
+| `/api/games/random` | `GET` | No | Query: `genre?`, `platform?` | `200 OK`<br>`404 Not Found` | Pick a random game matching optional filters |
 | `/api/games/{id}` | `GET` | No | None | `200 OK`<br>`404 Not Found` | Get detailed information for a single game |
 | `/api/library` | `GET` | Yes | Query: `status?` | `200 OK`<br>`401 Unauthorized` | List authenticated user's library games |
-| `/api/library` | `POST` | Yes | `AddLibraryEntryRequest` (`game_id`) | `201 Created`<br>`400 Conflict`<br>`404 Not Found` | Add game to personal library (default "want_to_play") |
-| `/api/library/{id}` | `PATCH` | Yes | `UpdateLibraryEntryRequest` (`status?`, `rating?`) | `200 OK`<br>`404 Not Found`<br>`422 Unprocessable` | Update play status or rating |
+| `/api/library` | `POST` | Yes | `AddLibraryEntryRequest` (`game_id`, `status?`) | `201 Created`<br>`400 Bad Request`<br>`404 Not Found` | Add game to personal library (default `"want_to_play"`) |
+| `/api/library/export` | `GET` | Yes | Query: `format` (`json` \| `csv`) | `200 OK`<br>`401 Unauthorized` | Export authenticated user's library in JSON or CSV format |
+| `/api/library/import` | `POST` | Yes | `LibraryImportRequest` (`entries`, `merge_strategy`) | `200 OK`<br>`401 Unauthorized` | Import JSON entries into user's library |
+| `/api/library/{id}` | `PATCH` | Yes | `UpdateLibraryEntryRequest` (`status?`, `rating?`, `notes?`, `is_favorite?`) | `200 OK`<br>`404 Not Found`<br>`422 Unprocessable` | Update status, rating (including `null` clear), notes, or favorite flag |
 | `/api/library/{id}` | `DELETE` | Yes | None | `204 No Content`<br>`404 Not Found` | Remove game from personal library |
-| `/api/users/me/stats` | `GET` | Yes | None | `200 OK`<br>`401 Unauthorized` | Retrieve calculated statistics for current user |
+| `/api/users/me/stats` | `GET` | Yes | None | `200 OK`<br>`401 Unauthorized` | Retrieve statistics (`favorites_count`, `rated_count`, `completion_rate`, `top_genres`) |
 
 ---
 

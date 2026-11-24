@@ -45,18 +45,20 @@ GameLibrary addresses this problem by providing a personal library where users c
 
 - User registration and account creation.
 - User authentication (login/logout).
-- Browsing the global game catalog (2,279+ verified games with high-resolution artwork).
-- Game search by title.
+- Browsing the global game catalog (2,279+ verified games with cover artwork) with server-side pagination and sorting.
+- Game search by title or developer (debounced) and random game discovery ("Surprise Me").
 - Filtering catalog by genre and platform (single or combined filters).
 - Viewing detailed game information.
 - Adding games to personal library (with default "Want to Play" status).
-- Removing games from personal library.
+- Removing games from personal library via accessible confirmation dialogs.
 - Changing game play status ("Want to Play", "Playing", "Completed").
-- Rating games with a personal score (1–10).
-- Viewing and filtering personal library by status.
-- User profile with automatic library statistics calculation.
+- Rating games with a personal score (1–10) with ability to clear ratings.
+- Adding personal notes (up to 1,000 characters) and marking games as favorites.
+- Exporting personal library as JSON or CSV, and importing JSON backups (`skip_existing` / `overwrite`).
+- Viewing and filtering personal library by status, favorites, text search, and sort order.
+- User profile with automatic library statistics (`favorites_count`, `rated_count`, `completion_rate`, `average_rating`, `top_genres`).
 - Dark and Light theme toggle with persisted user preference.
-- Automated API smoke test suite covering auth, catalog, library, and tenant isolation.
+- Isolated automated API smoke test suite covering auth, catalog, library, export/import, analytics, and tenant isolation.
 
 ### 4.2 Out of Scope
 
@@ -255,6 +257,8 @@ flowchart TD
 - `game_id`: UUID referencing the game.
 - `status`: Enum (`"want_to_play"` | `"playing"` | `"completed"`). Default: `"want_to_play"`.
 - `rating`: Optional integer (1 to 10).
+- `notes`: Optional personal review/note string (max 1,000 characters, default `""`).
+- `is_favorite`: Boolean flag indicating a favorite title (default `false`).
 - `created_at`: ISO 8601 UTC timestamp.
 - `updated_at`: ISO 8601 UTC timestamp.
 

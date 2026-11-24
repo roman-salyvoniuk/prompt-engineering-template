@@ -46,14 +46,15 @@ echo.
 echo ====================================================================
 echo [SUCCESS] All linters, formatters, and type checkers passed!
 echo ====================================================================
-goto :end
+echo.
+if "%1"=="" pause
+exit /b 0
 
 :failed
 echo.
 echo ====================================================================
 echo [FAILURE] Quality checks encountered errors. See trace above.
 echo ====================================================================
-
-:end
 echo.
 if "%1"=="" pause
+exit /b 1

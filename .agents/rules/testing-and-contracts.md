@@ -1,14 +1,15 @@
 ---
 description: "API testing standards, test case specifications, HTTP status code contracts, and frontend/backend type parity."
 trigger: glob
-globs: ["backend/scripts/**", "backend/app/routers/**", "frontend/src/store/api/**", "docs/**/test-cases.md"]
+globs: "backend/scripts/**,backend/app/routers/**,frontend/src/store/api/**,docs/**/test-cases.md"
 ---
 # Testing & API Contracts Rules
 
 ## 1. Automated Smoke Verification (`test_api.py`)
-1. **Mandatory Test Parity**: Every public API endpoint must have a corresponding test case in `backend/scripts/test_api.py`.
-2. **Regression Prevention**: Never delete or disable existing test cases in `test_api.py` to make a failing test pass.
-3. **Execution**: Tests must pass with exit code `0` before completing any API modification or feature additions:
+1. **Isolated Execution**: `backend/scripts/test_api.py` must run inside a temporary directory (`GAMELIBRARY_DATA_DIR`) with a copy of `games.json` so automated test runs never pollute live `backend/data/users.json` or `backend/data/libraries.json`.
+2. **Mandatory Test Parity**: Every public API endpoint must have a corresponding test case in `backend/scripts/test_api.py`.
+3. **Regression Prevention**: Never delete or disable existing test cases in `test_api.py` to make a failing test pass.
+4. **Execution**: Tests must pass with exit code `0` before completing any API modification or feature additions:
    ```bash
    uv run python -m scripts.test_api
    ```

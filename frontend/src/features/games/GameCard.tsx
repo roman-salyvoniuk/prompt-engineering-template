@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, Heart, Plus, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Game, LibraryEntry } from "@/types";
@@ -12,18 +12,35 @@ interface GameCardProps {
   onLibraryAction: (e: React.MouseEvent, game: Game) => void;
 }
 
+function shortPlatform(platform: string): string {
+  if (platform === "PlayStation") return "PS";
+  if (platform === "Nintendo Switch") return "Switch";
+  if (platform === "Web Browser") return "Web";
+  return platform;
+}
+
 export function GameCard({ game, inLibrary, entry, onCardClick, onLibraryAction }: GameCardProps) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onCardClick(game.id);
+    }
+  };
+
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`View details for ${game.title}`}
       onClick={() => onCardClick(game.id)}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-card transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/40 dark:hover:shadow-primary/5 cursor-pointer"
+      onKeyDown={handleKeyDown}
+      className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow] duration-200 hover:border-primary/50 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      {/* Cover Image Container */}
-      <div className="aspect-[16/10] w-full overflow-hidden bg-muted relative">
+      <div className="aspect-[16/10] w-full overflow-hidden bg-muted relative cover-frame">
         <img
           src={game.cover_image}
           alt={game.title}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
           loading="lazy"
           onError={(e) => {
             e.currentTarget.onerror = null;
@@ -31,19 +48,22 @@ export function GameCard({ game, inLibrary, entry, onCardClick, onLibraryAction 
               "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80";
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
 
-        {/* Release Year Pill */}
-        <div className="absolute bottom-2.5 left-2.5">
-          <span className="rounded-md bg-black/60 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white border border-white/10">
-            {game.release_year}
-          </span>
-        </div>
+        {inLibrary && entry?.is_favorite && (
+          <div
+            className="absolute top-2 left-2 flex h-6 w-6 items-center justify-center rounded-md bg-rose-600/95 text-white shadow-xs"
+            title="Favorite game"
+          >
+            <Heart className="h-3 w-3 fill-current" />
+          </div>
+        )}
 
-        {/* Status Indicator if in library */}
         {inLibrary && entry && (
-          <div className="absolute top-2.5 right-2.5">
-            <Badge variant={entry.status} className="shadow-md backdrop-blur-md font-semibold">
+          <div className="absolute top-2 right-2">
+            <Badge
+              variant={entry.status}
+              className="rounded-md bg-background/90 backdrop-blur-xs shadow-xs font-semibold"
+            >
               <Check className="mr-1 h-3 w-3" />
               {entry.status.replace(/_/g, " ")}
             </Badge>
@@ -51,24 +71,29 @@ export function GameCard({ game, inLibrary, entry, onCardClick, onLibraryAction 
         )}
       </div>
 
-      {/* Content */}
-      <div className="flex flex-1 flex-col justify-between p-4.5 space-y-3">
+      <div className="flex flex-1 flex-col justify-between p-3.5 gap-3">
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="truncate max-w-[150px] font-medium">{game.developer}</span>
-            <div className="flex gap-1">
+          <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+            <span className="truncate font-medium">
+              <span className="font-mono tabular-nums font-semibold text-foreground/80">
+                {game.release_year}
+              </span>
+              <span className="mx-1.5">·</span>
+              {game.developer}
+            </span>
+            <div className="flex gap-1 shrink-0">
               {game.platforms.slice(0, 2).map((plat) => (
                 <span
                   key={plat}
-                  className="rounded border border-border/60 bg-muted/40 px-1 py-0.2 text-[9px] font-medium text-muted-foreground"
+                  className="rounded-sm border border-border bg-muted/60 px-1 py-0.2 font-mono text-[9px] font-medium text-muted-foreground"
                 >
-                  {plat === "PlayStation" ? "PS" : plat === "Nintendo Switch" ? "Switch" : plat}
+                  {shortPlatform(plat)}
                 </span>
               ))}
             </div>
           </div>
 
-          <h3 className="font-extrabold text-base line-clamp-1 group-hover:text-primary transition-colors">
+          <h3 className="font-bold text-[15px] leading-snug tracking-tight line-clamp-1 group-hover:text-primary transition-colors">
             {game.title}
           </h3>
 
@@ -77,39 +102,38 @@ export function GameCard({ game, inLibrary, entry, onCardClick, onLibraryAction 
           </p>
         </div>
 
-        {/* Genres & Action button */}
-        <div className="space-y-3 pt-1">
-          <div className="flex flex-wrap gap-1">
-            {game.genres.slice(0, 2).map((gen) => (
-              <span
-                key={gen}
-                className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-              >
-                {gen}
+        <div className="pt-2.5 border-t border-border/70 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="truncate text-[11px] font-medium text-muted-foreground">
+              {game.genres.slice(0, 2).join(" / ")}
+            </span>
+            {inLibrary && entry?.rating !== null && entry?.rating !== undefined && (
+              <span className="inline-flex items-center gap-0.5 shrink-0 font-mono tabular-nums text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                <Star className="h-3 w-3 fill-current" />
+                {entry.rating}
               </span>
-            ))}
+            )}
           </div>
 
-          {/* Action button */}
           <Button
+            type="button"
             size="sm"
             variant={inLibrary ? "secondary" : "default"}
-            className={`w-full text-xs h-8 cursor-pointer rounded-lg transition-all ${
-              inLibrary
-                ? "bg-secondary hover:bg-secondary/80 font-medium"
-                : "bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs"
-            }`}
+            aria-label={
+              inLibrary ? `Edit ${game.title} in library` : `Add ${game.title} to library`
+            }
+            className="h-7 px-2.5 text-xs rounded-md shrink-0 font-semibold"
             onClick={(e) => onLibraryAction(e, game)}
           >
             {inLibrary ? (
               <>
-                <Check className="h-3.5 w-3.5 mr-1" />
-                In Library
+                <Check className="h-3 w-3 mr-1" />
+                Saved
               </>
             ) : (
               <>
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Add to Library
+                <Plus className="h-3 w-3 mr-1" />
+                Log
               </>
             )}
           </Button>

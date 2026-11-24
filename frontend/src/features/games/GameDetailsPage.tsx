@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { ArrowLeft, Info, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { GameHeroBanner } from "@/features/games/GameHeroBanner";
 import { GameTrackingCard } from "@/features/games/GameTrackingCard";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +18,7 @@ export function GameDetailsPage() {
   const { isAuthenticated, openLoginModal } = useAuth();
   const { isInLibrary, getEntryForGame, addToLibrary, updateEntry, removeEntry, isMutating } =
     useLibrary();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const {
     data: game,
@@ -28,8 +31,8 @@ export function GameDetailsPage() {
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8 sm:px-8 max-w-6xl animate-pulse space-y-6">
-        <div className="h-9 w-32 bg-muted rounded-xl" />
-        <div className="h-96 bg-muted rounded-3xl" />
+        <div className="h-9 w-32 bg-muted rounded-md" />
+        <div className="h-96 bg-muted rounded-xl" />
       </div>
     );
   }
@@ -37,11 +40,11 @@ export function GameDetailsPage() {
   if (isError || !game) {
     return (
       <div className="container mx-auto px-4 py-16 text-center max-w-md space-y-4">
-        <h2 className="text-2xl font-black">Game Not Found</h2>
+        <h2 className="font-serif text-2xl font-bold">Game Not Found</h2>
         <p className="text-sm text-muted-foreground">
           The requested game could not be retrieved from the catalog.
         </p>
-        <Button onClick={() => dispatch(setCurrentView("catalog"))} className="rounded-xl">
+        <Button onClick={() => dispatch(setCurrentView("catalog"))} className="rounded-md">
           Back to Catalog
         </Button>
       </div>
@@ -57,35 +60,44 @@ export function GameDetailsPage() {
     }
   };
 
-  const handleRatingChange = async (newRating: number) => {
+  const handleRatingChange = async (newRating: number | null) => {
     if (entry) {
-      const finalRating = entry.rating === newRating ? null : newRating;
-      await updateEntry(entry.id, { rating: finalRating });
+      await updateEntry(entry.id, { rating: newRating });
     }
   };
 
-  const handleRemove = async () => {
-    if (entry && window.confirm("Remove this game from your personal library?")) {
+  const handleFavoriteToggle = async () => {
+    if (entry) {
+      await updateEntry(entry.id, { is_favorite: !entry.is_favorite });
+    }
+  };
+
+  const handleNotesSave = async (notes: string) => {
+    if (entry) {
+      await updateEntry(entry.id, { notes });
+    }
+  };
+
+  const handleConfirmedRemove = async () => {
+    if (entry) {
       await removeEntry(entry.id);
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 sm:px-8 max-w-6xl space-y-8">
-      {/* Back button */}
+    <div className="container mx-auto px-4 py-6 sm:px-8 max-w-6xl space-y-6">
       <div>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => dispatch(setCurrentView("catalog"))}
-          className="text-muted-foreground hover:text-foreground cursor-pointer -ml-2 rounded-xl"
+          className="text-muted-foreground hover:text-foreground -ml-2 rounded-md"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="mr-1.5 h-4 w-4" />
           Back to Catalog
         </Button>
       </div>
 
-      {/* Cinematic Hero Card */}
       <GameHeroBanner
         game={game}
         inLibrary={inLibrary}
@@ -96,59 +108,58 @@ export function GameDetailsPage() {
         onAddToLibrary={addToLibrary}
       />
 
-      {/* Details & Library Control Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Description & Metadata */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-3xl border border-border/80 bg-card p-6 sm:p-8 space-y-4 shadow-xs">
-            <h2 className="text-xl font-bold tracking-tight flex items-center gap-2.5 text-foreground">
+          <div className="rounded-xl border border-border bg-card p-6 sm:p-7 space-y-3 shadow-2xs">
+            <h2 className="font-serif text-xl font-bold tracking-tight flex items-center gap-2 text-foreground">
               <Info className="h-5 w-5 text-primary" />
               About the Game
             </h2>
-            <p className="text-sm sm:text-base leading-relaxed text-muted-foreground whitespace-pre-line">
+            <p className="text-sm sm:text-[15px] leading-relaxed text-muted-foreground whitespace-pre-line">
               {game.description}
             </p>
           </div>
 
-          <div className="rounded-3xl border border-border/80 bg-card p-6 sm:p-8 space-y-4 shadow-xs">
-            <h2 className="text-xl font-bold tracking-tight flex items-center gap-2.5 text-foreground">
+          <div className="rounded-xl border border-border bg-card p-6 sm:p-7 space-y-4 shadow-2xs">
+            <h2 className="font-serif text-xl font-bold tracking-tight flex items-center gap-2 text-foreground">
               <Layers className="h-5 w-5 text-primary" />
               Game Overview
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 space-y-1">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+              <div className="rounded-lg border border-border bg-muted/35 p-3.5 space-y-1">
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Developer / Publisher
                 </span>
-                <p className="font-bold text-sm text-foreground">{game.developer}</p>
+                <p className="font-semibold text-sm text-foreground">{game.developer}</p>
               </div>
 
-              <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 space-y-1">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">
+              <div className="rounded-lg border border-border bg-muted/35 p-3.5 space-y-1">
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Release Year
                 </span>
-                <p className="font-bold text-sm text-foreground">{game.release_year}</p>
+                <p className="font-mono tabular-nums font-semibold text-sm text-foreground">
+                  {game.release_year}
+                </p>
               </div>
 
-              <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 space-y-1">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">
+              <div className="rounded-lg border border-border bg-muted/35 p-3.5 space-y-1">
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Primary Genres
                 </span>
-                <p className="font-bold text-sm text-foreground">{game.genres.join(", ")}</p>
+                <p className="font-semibold text-sm text-foreground">{game.genres.join(", ")}</p>
               </div>
 
-              <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 space-y-1">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">
+              <div className="rounded-lg border border-border bg-muted/35 p-3.5 space-y-1">
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Supported Platforms
                 </span>
-                <p className="font-bold text-sm text-foreground">{game.platforms.join(", ")}</p>
+                <p className="font-semibold text-sm text-foreground">{game.platforms.join(", ")}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Library Management or Callout */}
         <div className="lg:col-span-1 space-y-6">
           <GameTrackingCard
             isAuthenticated={isAuthenticated}
@@ -157,10 +168,22 @@ export function GameDetailsPage() {
             isMutating={isMutating}
             onStatusChange={handleStatusChange}
             onRatingChange={handleRatingChange}
-            onRemove={handleRemove}
+            onFavoriteToggle={handleFavoriteToggle}
+            onNotesSave={handleNotesSave}
+            onRequestRemove={() => setConfirmOpen(true)}
           />
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Remove from library?"
+        description={`Remove "${game.title}" from your personal library? It will remain in the global catalog.`}
+        confirmLabel="Remove Game"
+        isLoading={isMutating}
+        onConfirm={handleConfirmedRemove}
+      />
     </div>
   );
 }

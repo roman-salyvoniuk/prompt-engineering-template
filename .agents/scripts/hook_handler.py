@@ -1,34 +1,30 @@
 """Enterprise Lifecycle Hook Suite for GameLibrary Antigravity Agent.
 
-Full Lifecycle Implementation:
-1. PreToolUse:
-   - Destructive command guardrail (blocks rm -rf, format, etc.)
-   - Destructive git mutation confirmation (asks confirmation for git reset --hard, force push)
-   - Protected path guard (protects /.git/, /.env, /.venv/)
-   - Catalog data guard (protects backend/data/games.json from truncation)
-   - Secret & API key leak blocker (blocks committing raw tokens/private keys)
-2. PostToolUse:
-   - Python AST / bytecode compilation checks (py_compile)
-   - JSON database integrity checks for backend/data/*.json
-   - Structured audit logging to .agents/logs/audit.log
-3. PreInvocation:
-   - Dynamic environment inspection (catalog count, user count, backend live health check)
-   - Injects real-time context message into model invocation
-4. PostInvocation:
-   - Post-response auditing and step tracking
-5. Stop:
-   - Quality gate verifying data stores (games.json >= 500 items, users, libraries)
-   - Runs backend automated smoke tests (scripts.test_api) to prevent regressions
+Lifecycle Handlers:
+1. SessionStart: Injects catalog count and backend health once per session.
+2. PreToolUse: Blocks destructive commands, protected paths, catalog wipes, and secret leaks.
+3. PostToolUse: Runs fast per-file syntax/lint/format/type checks and tracks dirty state.
+4. Stop: Guards catalog integrity and runs quality/smoke gates when code changed.
 """
 
-from datetime import datetime
 import json
-from pathlib import Path
-import py_compile
 import re
 import subprocess
 import sys
 import urllib.request
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from hook_guards import (
+    FILE_MUTATION_TOOLS,
+    check_for_secrets,
+    evaluate_command_guard,
+    evaluate_file_guard,
+    extract_file_mutation,
+    verify_games_catalog,
+)
+from quality_checks import run_full_quality_gate, validate_modified_file
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 AGENTS_DIR = SCRIPT_DIR.parent
@@ -38,18 +34,19 @@ AUDIT_LOG_FILE = LOGS_DIR / "audit.log"
 DATA_DIR = WORKSPACE_DIR / "backend" / "data"
 
 
-def get_stdin_data() -> dict:
+def _get_stdin_data() -> dict[str, Any]:
     """Reads JSON payload from stdin safely without hanging."""
     if sys.stdin.isatty():
         return {}
     try:
         raw = sys.stdin.read()
-        return json.loads(raw) if raw.strip() else {}
+        parsed = json.loads(raw) if raw.strip() else {}
+        return parsed if isinstance(parsed, dict) else {}
     except Exception:
         return {}
 
 
-def log_audit(event_type: str, message: str) -> None:
+def _log_audit(event_type: str, message: str) -> None:
     """Appends an event to the local agent audit log."""
     try:
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -60,198 +57,131 @@ def log_audit(event_type: str, message: str) -> None:
         pass
 
 
-def check_for_secrets(text: str) -> str | None:
-    """Detects leaked API keys, tokens, or private certificates."""
-    secret_patterns = [
-        (r"-----BEGIN (?:RSA )?PRIVATE KEY-----", "Private cryptographic key"),
-        (r"ghp_[a-zA-Z0-9]{36}", "GitHub Personal Access Token"),
-        (r"github_pat_[a-zA-Z0-9_]{82}", "Fine-grained GitHub Token"),
-        (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
-        (r"sk-[a-zA-Z0-9]{32,}", "OpenAI API secret key"),
-    ]
-    for pattern, name in secret_patterns:
-        if re.search(pattern, text):
-            return name
-    return None
+def _dirty_flag_path(data: dict[str, Any]) -> Path:
+    """Returns per-conversation dirty marker file path."""
+    conv_id = str(data.get("conversationId") or "default")
+    safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", conv_id)
+    return LOGS_DIR / f"dirty_{safe_id}.flag"
 
 
-def handle_pre_tool():
+def _mark_dirty(data: dict[str, Any]) -> None:
+    """Marks the current conversation as having workspace code changes."""
+    try:
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        _dirty_flag_path(data).write_text("1", encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _emit(payload: dict[str, Any]) -> None:
+    sys.stdout.write(json.dumps(payload))
+
+
+def handle_pre_tool() -> None:
     """PreToolUse: Safety Gates, Secret Leak Blocker, and Catalog Protection."""
     try:
-        data = get_stdin_data()
+        data = _get_stdin_data()
         tool_call = data.get("toolCall", {})
-        tool_name = tool_call.get("name", "")
-        args = tool_call.get("args", {})
+        tool_name = str(tool_call.get("name", ""))
+        args = tool_call.get("args", {}) or {}
 
-        # 1. Terminal Command Safety Guard
-        if tool_name == "run_command":
-            cmd = args.get("CommandLine", "").strip().lower()
-
-            # Hard-block dangerous system destruction commands
-            hard_blocked = [
-                "rmdir /s /q c:\\",
-                "del /f /s /q c:\\",
-                "format c:",
-                "diskpart",
-                "drop database",
-            ]
-            for blocked in hard_blocked:
-                if blocked in cmd:
-                    log_audit("BLOCKED_CMD", f"Hard-blocked dangerous command: {cmd}")
-                    sys.stdout.write(
-                        json.dumps(
-                            {
-                                "decision": "deny",
-                                "reason": f"Security Gate: Prohibited system destructive command sequence: '{blocked}'",
-                            }
-                        )
-                    )
-                    return
-
-            # Ask user confirmation for irreversible git actions
-            risky_git = ["git reset --hard", "git push --force", "git push -f"]
-            for risky in risky_git:
-                if risky in cmd:
-                    log_audit("RISK_CONFIRM", f"Requested confirmation for: {cmd}")
-                    sys.stdout.write(
-                        json.dumps(
-                            {
-                                "decision": "ask",
-                                "reason": f"Safety Gate: Command performs irreversible git state mutation ('{risky}'). Confirm execution?",
-                            }
-                        )
-                    )
-                    return
-
-        # 2. Protected Files Guard for File Tools
-        if tool_name in ("write_to_file", "replace_file_content"):
-            target_file = args.get("TargetFile", "").replace("\\", "/")
-
-            # Protect VCS internals and environment credentials
-            protected_patterns = ["/.git/", "/.env", "/.venv/"]
-            for pat in protected_patterns:
-                if pat in target_file:
-                    log_audit("BLOCKED_FILE", f"Blocked write to protected path: {target_file}")
-                    sys.stdout.write(
-                        json.dumps(
-                            {
-                                "decision": "deny",
-                                "reason": f"Safety Gate: Direct modification of protected path '{pat}' is prohibited.",
-                            }
-                        )
-                    )
-                    return
-
-            # Protect games.json from accidental wiping or truncation
-            if target_file.endswith("backend/data/games.json") and tool_name == "write_to_file":
-                content = args.get("CodeContent", "")
-                try:
-                    parsed = json.loads(content)
-                    if not isinstance(parsed, list) or len(parsed) < 500:
-                        log_audit("BLOCKED_WIPE", "Attempted to overwrite games.json with truncated array.")
-                        sys.stdout.write(
-                            json.dumps(
-                                {
-                                    "decision": "deny",
-                                    "reason": "Safety Gate: Attempted to replace games catalog with a truncated list (< 500 items). Operation aborted.",
-                                }
-                            )
-                        )
-                        return
-                except Exception:
-                    pass
-
-        # 3. Secret Leak Blocker
         content_to_scan = ""
         if tool_name == "run_command":
-            content_to_scan = args.get("CommandLine", "")
-        elif tool_name == "write_to_file":
-            content_to_scan = args.get("CodeContent", "")
-        elif tool_name == "replace_file_content":
-            content_to_scan = args.get("ReplacementContent", "")
+            content_to_scan = str(args.get("CommandLine", ""))
+            decision, reason = evaluate_command_guard(content_to_scan)
+            if decision != "allow" and reason:
+                _log_audit(f"CMD_{decision.upper()}", reason)
+                _emit({"decision": decision, "reason": reason})
+                return
+        elif tool_name in FILE_MUTATION_TOOLS:
+            target_raw, content_to_scan = extract_file_mutation(tool_name, args)
+            decision, reason = evaluate_file_guard(tool_name, target_raw, content_to_scan)
+            if decision != "allow" and reason:
+                _log_audit(f"FILE_{decision.upper()}", reason)
+                _emit({"decision": decision, "reason": reason})
+                return
 
         detected_secret = check_for_secrets(content_to_scan)
         if detected_secret:
-            log_audit("BLOCKED_SECRET", f"Blocked leak of {detected_secret}")
-            sys.stdout.write(
-                json.dumps(
-                    {
-                        "decision": "deny",
-                        "reason": f"Security Gate: Detected {detected_secret} in payload. Secrets must not be committed to code.",
-                    }
-                )
+            _log_audit("BLOCKED_SECRET", f"Blocked leak of {detected_secret}")
+            _emit(
+                {
+                    "decision": "deny",
+                    "reason": f"Security Gate: Detected {detected_secret} in payload. Secrets are forbidden.",
+                }
             )
             return
 
-        # Allow execution
-        log_audit("ALLOW_TOOL", f"Tool approved: {tool_name}")
-        sys.stdout.write(json.dumps({"decision": "allow"}))
-    except Exception as e:
-        sys.stdout.write(json.dumps({"decision": "allow", "reason": f"Hook exception handled: {e}"}))
+        _log_audit("ALLOW_TOOL", f"Tool approved: {tool_name}")
+        _emit({"decision": "allow"})
+    except Exception as exc:
+        _emit({"decision": "allow", "reason": f"Hook exception: {exc}"})
 
 
-def handle_post_tool():
-    """PostToolUse: Syntax Checking, Store Integrity, and Audit Logging.
-    Contract strictly requires empty JSON object `{}` on stdout.
-    """
+def handle_post_tool() -> None:
+    """PostToolUse: Syntax, Linter, Formatter, Type Checker, and Dirty Flag tracking."""
     try:
-        data = get_stdin_data()
+        data = _get_stdin_data()
         tool_call = data.get("toolCall", {})
-        tool_name = tool_call.get("name", "")
-        args = tool_call.get("args", {})
+        tool_name = str(tool_call.get("name", ""))
+        args = tool_call.get("args", {}) or {}
         error = data.get("error", "")
 
-        # Log completion
         status_text = f"FAILED: {error}" if error else "SUCCESS"
-        log_audit("POST_TOOL", f"Completed {tool_name} [{status_text}]")
+        _log_audit("POST_TOOL", f"Completed {tool_name} [{status_text}]")
 
-        # Post-edit validations for written or modified files
-        if tool_name in ("write_to_file", "replace_file_content"):
-            target_path_str = args.get("TargetFile", "")
+        if tool_name in FILE_MUTATION_TOOLS:
+            target_path_str, _ = extract_file_mutation(tool_name, args)
             if target_path_str:
                 path = Path(target_path_str)
+                validate_modified_file(path, _log_audit)
+                norm = str(path).replace("\\", "/")
+                if any(seg in norm for seg in ("/backend/", "/frontend/", "/.agents/scripts/")):
+                    _mark_dirty(data)
 
-                # Validate Python syntax if a Python file was modified
-                if path.suffix == ".py" and path.exists():
+                if "/backend/data/" in norm and path.suffix == ".json" and path.exists():
                     try:
-                        py_compile.compile(str(path), doraise=True)
-                        log_audit("PY_SYNTAX", f"Syntax validation passed: {path.name}")
-                    except py_compile.PyCompileError as pe:
-                        log_audit("PY_ERROR", f"Syntax error in {path.name}: {pe}")
-
-                # Validate JSON integrity if a data store file was modified
-                if "backend/data" in str(path).replace("\\", "/") and path.suffix == ".json" and path.exists():
-                    try:
-                        with open(path, "r", encoding="utf-8") as jf:
-                            store_data = json.load(jf)
-                        if isinstance(store_data, list):
-                            log_audit("STORE_OK", f"Validated {path.name}: {len(store_data)} entries.")
-                        else:
-                            log_audit("STORE_WARN", f"{path.name} is valid JSON but not an array.")
+                        store_data = json.loads(path.read_text(encoding="utf-8"))
+                        label = "STORE_OK" if isinstance(store_data, list) else "STORE_WARN"
+                        detail = (
+                            f"Validated {path.name}: {len(store_data)} entries."
+                            if isinstance(store_data, list)
+                            else f"{path.name} is valid JSON but not an array."
+                        )
+                        _log_audit(label, detail)
                     except Exception as je:
-                        log_audit("STORE_ERROR", f"Corrupted JSON in {path.name}: {je}")
+                        _log_audit("STORE_ERROR", f"Corrupted JSON in {path.name}: {je}")
+        elif tool_name == "run_command" and not error:
+            cmd = str(args.get("CommandLine", "")).lower()
+            if any(
+                k in cmd
+                for k in ("format", "ruff", "prettier", "git checkout", "npm install", "uv ")
+            ):
+                _mark_dirty(data)
     except Exception:
         pass
     finally:
-        sys.stdout.write(json.dumps({}))
+        _emit({})
 
 
-def handle_pre_invocation():
-    """PreInvocation: Injects real-time environment metrics & dynamic context."""
+def handle_session_start() -> None:
+    """SessionStart: Injects real-time environment metrics once at session start."""
     try:
         games_count = "?"
         games_file = DATA_DIR / "games.json"
         if games_file.exists():
             try:
-                with open(games_file, "r", encoding="utf-8") as f:
-                    games_count = str(len(json.load(f)))
+                games_count = str(len(json.loads(games_file.read_text(encoding="utf-8"))))
             except Exception:
                 pass
 
         backend_status = "offline"
         try:
-            req = urllib.request.Request("http://127.0.0.1:8001/health", headers={"User-Agent": "AntigravityHook"})
-            with urllib.request.urlopen(req, timeout=0.4) as response:
+            req = urllib.request.Request(
+                "http://127.0.0.1:8001/health",
+                headers={"User-Agent": "AntigravityHook"},
+            )
+            with urllib.request.urlopen(req, timeout=0.3) as response:
                 if response.status == 200:
                     backend_status = "online (port 8001)"
         except Exception:
@@ -262,100 +192,80 @@ def handle_pre_invocation():
             "Stack: FastAPI (layered: Routers->Services->Repositories) + React 19 (RTK Query). "
             "Data stores in backend/data/ are protected."
         )
-        sys.stdout.write(json.dumps({"injectSteps": [{"ephemeralMessage": message}]}))
+        _emit({"injectSteps": [{"systemMessage": {"systemMessage": message}}]})
     except Exception:
-        sys.stdout.write(json.dumps({"injectSteps": []}))
+        _emit({"injectSteps": []})
 
 
-def handle_post_invocation():
-    """PostInvocation: Execution auditing."""
+def handle_stop() -> None:
+    """Stop: Verifies catalog integrity and runs quality/smoke gates when code changed."""
     try:
-        log_audit("POST_INVOKE", "Agent invocation step finished.")
-        sys.stdout.write(json.dumps({"injectSteps": []}))
-    except Exception:
-        sys.stdout.write(json.dumps({"injectSteps": []}))
+        data = _get_stdin_data()
+        term_reason = str(data.get("terminationReason", "NO_TOOL_CALL"))
+        if term_reason != "NO_TOOL_CALL" or bool(data.get("continuationActive", False)):
+            _emit({"decision": "stop"})
+            return
 
+        catalog_err = verify_games_catalog(DATA_DIR)
+        if catalog_err:
+            _log_audit("STOP_BLOCK", catalog_err)
+            _emit({"decision": "continue", "reason": catalog_err})
+            return
 
-def handle_stop():
-    """Stop: Quality Gate ensuring database files and smoke test suite are passing."""
-    try:
-        # 1. Check critical data store integrity
-        games_file = DATA_DIR / "games.json"
-        if games_file.exists():
-            try:
-                with open(games_file, "r", encoding="utf-8") as f:
-                    games = json.load(f)
-                if not isinstance(games, list) or len(games) < 500:
-                    log_audit("STOP_BLOCK", "Blocked stop due to missing/truncated games.json")
-                    sys.stdout.write(
-                        json.dumps(
-                            {
-                                "decision": "continue",
-                                "reason": "Quality Gate: backend/data/games.json appears damaged or truncated (< 500 games). Please verify data integrity before finishing.",
-                            }
-                        )
-                    )
-                    return
-            except Exception as e:
-                log_audit("STOP_BLOCK", f"Blocked stop due to JSON parse error: {e}")
-                sys.stdout.write(
-                    json.dumps(
-                        {
-                            "decision": "continue",
-                            "reason": f"Quality Gate: backend/data/games.json failed JSON parse check ({e}). Please fix syntax before finishing.",
-                        }
-                    )
+        dirty_flag = _dirty_flag_path(data)
+        if not dirty_flag.exists():
+            _log_audit("STOP_SKIP", "No workspace code mutations detected; skipped heavy gate.")
+            _emit({"decision": "stop"})
+            return
+
+        qg_ok, qg_reason = run_full_quality_gate()
+        if not qg_ok:
+            _log_audit("STOP_BLOCK_QUALITY", qg_reason)
+            _emit({"decision": "continue", "reason": qg_reason})
+            return
+
+        backend_dir = WORKSPACE_DIR / "backend"
+        if (backend_dir / "scripts" / "test_api.py").exists():
+            result = subprocess.run(
+                ["uv", "run", "python", "-m", "scripts.test_api"],
+                cwd=str(backend_dir),
+                capture_output=True,
+                text=True,
+                timeout=25,
+                encoding="utf-8",
+                errors="replace",
+            )
+            if result.returncode != 0:
+                err_msg = (result.stderr or result.stdout or "Unknown failure").strip()[-400:]
+                _log_audit("STOP_BLOCK_TESTS", f"Smoke tests failed on stop: {err_msg}")
+                _emit(
+                    {
+                        "decision": "continue",
+                        "reason": f"Quality Gate: Smoke tests failed. Fix before finishing:\n{err_msg}",
+                    }
                 )
                 return
 
-        # 2. Run automated backend smoke tests
-        backend_dir = WORKSPACE_DIR / "backend"
-        test_script = backend_dir / "scripts" / "test_api.py"
-        if test_script.exists():
-            try:
-                result = subprocess.run(
-                    ["uv", "run", "python", "-m", "scripts.test_api"],
-                    cwd=str(backend_dir),
-                    capture_output=True,
-                    text=True,
-                    timeout=20,
-                )
-                if result.returncode != 0:
-                    err_msg = (result.stderr or result.stdout or "Unknown failure").strip()[-400:]
-                    log_audit("STOP_BLOCK_TESTS", f"Smoke tests failed on stop: {err_msg}")
-                    sys.stdout.write(
-                        json.dumps(
-                            {
-                                "decision": "continue",
-                                "reason": f"Quality Gate: Automated smoke test suite failed. Please fix before finishing:\n{err_msg}",
-                            }
-                        )
-                    )
-                    return
-            except Exception as te:
-                log_audit("STOP_TEST_ERROR", f"Test runner error: {te}")
-
-        # All quality checks passed
-        log_audit("STOP_OK", "Quality gate passed. Agent allowed to stop.")
-        sys.stdout.write(json.dumps({"decision": "stop"}))
+        dirty_flag.unlink(missing_ok=True)
+        _log_audit("STOP_OK", "Quality gate and smoke tests passed. Agent allowed to stop.")
+        _emit({"decision": "stop"})
     except Exception:
-        sys.stdout.write(json.dumps({"decision": "stop"}))
+        _emit({"decision": "stop"})
 
 
-def main():
+def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "post"
-    if mode == "pre":
-        handle_pre_tool()
-    elif mode == "post":
-        handle_post_tool()
-    elif mode == "pre_invocation":
-        handle_pre_invocation()
-    elif mode == "post_invocation":
-        handle_post_invocation()
-    elif mode == "stop":
-        handle_stop()
+    handlers = {
+        "pre": handle_pre_tool,
+        "post": handle_post_tool,
+        "session_start": handle_session_start,
+        "stop": handle_stop,
+    }
+    handler = handlers.get(mode)
+    if handler:
+        handler()
     else:
-        sys.stdout.write(json.dumps({}))
+        _emit({})
 
 
 if __name__ == "__main__":

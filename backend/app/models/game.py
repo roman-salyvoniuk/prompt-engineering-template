@@ -19,3 +19,11 @@ class GameResponse(GameBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+
+
+class PaginatedGamesResponse(BaseModel):
+    items: list[GameResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int

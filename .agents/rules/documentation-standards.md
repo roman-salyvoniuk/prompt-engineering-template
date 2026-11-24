@@ -1,7 +1,7 @@
 ---
 description: "Documentation structure, feature specification rules, and synchronization standards under docs/."
 trigger: glob
-globs: ["docs/**", "README.md", "Agents.MD"]
+globs: "docs/**,README.md,Agents.MD"
 ---
 # Documentation Standards & Specifications
 

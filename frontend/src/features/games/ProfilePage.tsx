@@ -1,6 +1,7 @@
 import { useDispatch } from "react-redux";
-import { CheckCircle2, Clock, Gamepad2, Library, Star } from "lucide-react";
+import { BarChart3, Gamepad2, Library, RefreshCw, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ProfileStatCards } from "@/features/games/ProfileStatCards";
 import { useAuth } from "@/hooks/useAuth";
 import { useLibrary } from "@/hooks/useLibrary";
 import { setCurrentView } from "@/store/slices/appSlice";
@@ -9,116 +10,190 @@ import type { AppDispatch } from "@/store/store";
 export function ProfilePage() {
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useAuth();
-  const { stats, isLoading } = useLibrary();
+  const { stats, isLoading, isError, refetchLibrary } = useLibrary();
 
   if (!user) return null;
 
+  const total = stats?.total_games ?? 0;
+  const completedCount = stats?.completed_count ?? 0;
+  const playingCount = stats?.playing_count ?? 0;
+  const wantCount = stats?.want_to_play_count ?? 0;
+  const topGenres = stats?.top_genres ?? [];
+  const maxGenreCount = topGenres.length > 0 ? Math.max(...topGenres.map((g) => g.count), 1) : 1;
+
+  const pct = (value: number) => (total > 0 ? `${(value / total) * 100}%` : "0%");
+
   return (
-    <div className="container mx-auto px-4 py-8 sm:px-8 max-w-4xl space-y-8">
-      {/* Profile Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border bg-card p-6 shadow-xs">
+    <div className="container mx-auto px-4 py-6 sm:px-8 max-w-5xl space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-border bg-card p-6 shadow-2xs">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary font-bold text-2xl border border-primary/20">
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10 text-primary font-serif font-bold text-2xl border border-primary/25">
             {user.username.charAt(0).toUpperCase()}
           </div>
-          <div className="space-y-1">
-            <h1 className="text-2xl font-extrabold tracking-tight">{user.username}</h1>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
+          <div className="space-y-0.5">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+              Player Profile
+            </p>
+            <h1 className="font-serif text-2xl font-bold tracking-tight">{user.username}</h1>
+            <p className="text-xs text-muted-foreground">{user.email}</p>
           </div>
         </div>
 
-        <div>
-          <Button variant="outline" size="sm" onClick={() => dispatch(setCurrentView("library"))}>
-            <Library className="mr-2 h-4 w-4" />
-            Go to My Library
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => dispatch(setCurrentView("library"))}
+          className="rounded-md"
+        >
+          <Library className="mr-2 h-4 w-4" />
+          Go to My Library
+        </Button>
       </div>
 
-      {/* Stats Grid */}
       <div className="space-y-4">
-        <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+        <h2 className="font-serif text-xl font-bold tracking-tight flex items-center gap-2">
           <Gamepad2 className="h-5 w-5 text-primary" />
           Gaming Statistics
         </h2>
 
-        {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-28 rounded-xl bg-muted/40 animate-pulse border" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Total Games */}
-            <div className="rounded-xl border bg-card p-5 space-y-2 shadow-xs">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold uppercase tracking-wider">Total Games</span>
-                <Library className="h-4 w-4 text-primary" />
-              </div>
-              <div className="text-3xl font-extrabold">{stats?.total_games ?? 0}</div>
-              <p className="text-[11px] text-muted-foreground">In collection</p>
-            </div>
-
-            {/* Want to Play */}
-            <div className="rounded-xl border bg-card p-5 space-y-2 shadow-xs">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold uppercase tracking-wider">Want to Play</span>
-                <Clock className="h-4 w-4 text-amber-500" />
-              </div>
-              <div className="text-3xl font-extrabold text-amber-500">
-                {stats?.want_to_play_count ?? 0}
-              </div>
-              <p className="text-[11px] text-muted-foreground">In backlog</p>
-            </div>
-
-            {/* Currently Playing */}
-            <div className="rounded-xl border bg-card p-5 space-y-2 shadow-xs">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold uppercase tracking-wider">Playing</span>
-                <Gamepad2 className="h-4 w-4 text-blue-500" />
-              </div>
-              <div className="text-3xl font-extrabold text-blue-500">
-                {stats?.playing_count ?? 0}
-              </div>
-              <p className="text-[11px] text-muted-foreground">Active sessions</p>
-            </div>
-
-            {/* Completed */}
-            <div className="rounded-xl border bg-card p-5 space-y-2 shadow-xs">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold uppercase tracking-wider">Completed</span>
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              </div>
-              <div className="text-3xl font-extrabold text-emerald-500">
-                {stats?.completed_count ?? 0}
-              </div>
-              <p className="text-[11px] text-muted-foreground">Finished games</p>
-            </div>
+        {isError && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center text-destructive space-y-3">
+            <p className="font-semibold text-sm">Failed to load profile statistics.</p>
+            <Button type="button" variant="outline" size="sm" onClick={refetchLibrary}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              Retry
+            </Button>
           </div>
         )}
 
-        {/* Rating Overview Card */}
-        <div className="rounded-2xl border bg-gradient-to-r from-card to-muted/40 p-6 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xs">
-          <div className="space-y-1 text-center sm:text-left">
-            <h3 className="font-bold text-lg flex items-center justify-center sm:justify-start gap-2">
-              <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-              Average Personal Rating
-            </h3>
-            <p className="text-sm text-muted-foreground max-w-md">
-              Calculated across all rated games in your personal library.
-            </p>
+        {isLoading && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-28 rounded-lg bg-muted/50 animate-pulse border" />
+            ))}
           </div>
+        )}
 
-          <div className="flex items-baseline gap-1 bg-card border rounded-xl px-6 py-3 shadow-xs">
-            <span className="text-4xl font-black text-amber-500">
-              {stats?.average_rating !== null && stats?.average_rating !== undefined
-                ? stats.average_rating.toFixed(1)
-                : "—"}
-            </span>
-            <span className="text-sm text-muted-foreground font-semibold">/ 10</span>
-          </div>
-        </div>
+        {!isLoading && !isError && (
+          <>
+            <ProfileStatCards
+              total={total}
+              wantCount={wantCount}
+              playingCount={playingCount}
+              completedCount={completedCount}
+              favoritesCount={stats?.favorites_count ?? 0}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="rounded-xl border border-border bg-card p-6 space-y-4 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-serif font-bold text-base">Completion Progress</h3>
+                    <p className="font-mono tabular-nums text-xs text-muted-foreground">
+                      {stats?.rated_count ?? 0} of {total} games rated
+                    </p>
+                  </div>
+                  <span className="font-mono tabular-nums text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                    {(stats?.completion_rate ?? 0).toFixed(1)}%
+                  </span>
+                </div>
+
+                <div
+                  className="h-2.5 w-full overflow-hidden rounded-sm bg-muted flex"
+                  aria-label="Library status distribution"
+                >
+                  <div
+                    className="h-full bg-emerald-500 transition-[width] duration-300"
+                    style={{ width: pct(completedCount) }}
+                  />
+                  <div
+                    className="h-full bg-blue-500 transition-[width] duration-300"
+                    style={{ width: pct(playingCount) }}
+                  />
+                  <div
+                    className="h-full bg-amber-500 transition-[width] duration-300"
+                    style={{ width: pct(wantCount) }}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-xs bg-emerald-500" />
+                    <span className="font-mono tabular-nums">Completed ({completedCount})</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-xs bg-blue-500" />
+                    <span className="font-mono tabular-nums">Playing ({playingCount})</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-xs bg-amber-500" />
+                    <span className="font-mono tabular-nums">Want to Play ({wantCount})</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-6 flex flex-col justify-center shadow-2xs">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h3 className="font-serif font-bold text-base flex items-center gap-2">
+                      <Star className="h-4.5 w-4.5 text-amber-500 fill-amber-500" />
+                      Average Personal Rating
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Calculated across{" "}
+                      <span className="font-mono tabular-nums font-semibold">
+                        {stats?.rated_count ?? 0}
+                      </span>{" "}
+                      rated titles in your library.
+                    </p>
+                  </div>
+                  <div className="flex items-baseline gap-1 bg-muted/50 border border-border rounded-lg px-4 py-2 shrink-0">
+                    <span className="font-mono tabular-nums text-3xl font-bold text-amber-600 dark:text-amber-400">
+                      {stats?.average_rating !== null && stats?.average_rating !== undefined
+                        ? stats.average_rating.toFixed(1)
+                        : "—"}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground font-semibold">
+                      / 10
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-6 space-y-4 shadow-2xs">
+              <h3 className="font-serif font-bold text-base flex items-center gap-2">
+                <BarChart3 className="h-4.5 w-4.5 text-primary" />
+                Top Genres in Your Library
+              </h3>
+
+              {topGenres.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Log games to your library to see your favorite genre breakdown.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {topGenres.map((item) => (
+                    <div key={item.genre} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-foreground">{item.genre}</span>
+                        <span className="font-mono tabular-nums text-muted-foreground font-medium">
+                          {item.count} {item.count === 1 ? "game" : "games"}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-sm bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-sm bg-primary transition-[width] duration-300"
+                          style={{ width: `${(item.count / maxGenreCount) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

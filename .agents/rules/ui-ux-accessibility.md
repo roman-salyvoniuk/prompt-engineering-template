@@ -1,7 +1,7 @@
 ---
 description: "UI/UX design system, Tailwind v4 styling, Dark/Light theme switching, accessibility (a11y), and state handling."
 trigger: glob
-globs: ["frontend/src/**"]
+globs: "frontend/src/**"
 ---
 # UI/UX, Theme & Accessibility Rules
 
@@ -18,6 +18,7 @@ globs: ["frontend/src/**"]
 1. **Interactive Elements**:
    - Every button, link, and interactive trigger must have an accessible label (`aria-label` or visible text).
    - Dialogs and modals must include `DialogTitle` and `DialogDescription` for screen readers (using Radix/shadcn primitives).
+   - Use the accessible `ConfirmDialog` component (`src/components/ui/confirm-dialog.tsx`) instead of blocking browser `window.confirm()` / `window.alert()` dialogs.
 2. **Focus & Keyboard Navigation**:
    - Preserve visible focus indicators (`focus-visible:ring-2 focus-visible:ring-ring`).
    - Modals must support keyboard trap and `Escape` key dismissal.

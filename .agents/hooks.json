@@ -2,7 +2,7 @@
   "safety-guard": {
     "PreToolUse": [
       {
-        "matcher": "run_command|write_to_file|replace_file_content",
+        "matcher": "run_command|write_file|edit_file|write_to_file|replace_file_content|multi_replace_file_content",
         "hooks": [
           {
             "type": "command",
@@ -16,31 +16,22 @@
   "post-tool-auditor": {
     "PostToolUse": [
       {
-        "matcher": "write_to_file|replace_file_content|run_command",
+        "matcher": "run_command|write_file|edit_file|write_to_file|replace_file_content|multi_replace_file_content",
         "hooks": [
           {
             "type": "command",
             "command": "uv run python scripts/hook_handler.py post",
-            "timeout": 15
+            "timeout": 25
           }
         ]
       }
     ]
   },
-  "context-injector": {
-    "PreInvocation": [
+  "session-context": {
+    "SessionStart": [
       {
         "type": "command",
-        "command": "uv run python scripts/hook_handler.py pre_invocation",
-        "timeout": 10
-      }
-    ]
-  },
-  "post-invocation-auditor": {
-    "PostInvocation": [
-      {
-        "type": "command",
-        "command": "uv run python scripts/hook_handler.py post_invocation",
+        "command": "uv run python scripts/hook_handler.py session_start",
         "timeout": 10
       }
     ]
@@ -50,7 +41,7 @@
       {
         "type": "command",
         "command": "uv run python scripts/hook_handler.py stop",
-        "timeout": 30
+        "timeout": 45
       }
     ]
   }

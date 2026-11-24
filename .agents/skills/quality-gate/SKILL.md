@@ -22,11 +22,11 @@ From the `backend/` directory:
 ```bash
 cd backend
 
-# Linter check
-uv run ruff check app
+# Linter check (backend + agent hook scripts)
+uv run ruff check app ../.agents/scripts
 
 # Formatter check
-uv run ruff format --check app
+uv run ruff format --check app ../.agents/scripts
 
 # Type checker (strict mode)
 uv run mypy app
@@ -35,10 +35,10 @@ uv run mypy app
 Auto-fixing backend issues:
 ```bash
 # Auto-fix linter rules
-uv run ruff check --fix app
+uv run ruff check --fix app ../.agents/scripts
 
 # Auto-format Python code
-uv run ruff format app
+uv run ruff format app ../.agents/scripts
 ```
 
 ### 2. Frontend Validation (React 19 / TypeScript)

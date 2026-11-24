@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { GameFilterParams } from "@/types";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import type { CatalogSortBy, GameFilterParams } from "@/types";
 
 export const AVAILABLE_GENRES = [
   "All",
@@ -30,24 +31,56 @@ export const AVAILABLE_PLATFORMS = [
   "Web Browser",
 ] as const;
 
+export const CATALOG_PAGE_SIZE = 24;
+
 export function useCatalogFilters() {
-  const [search, setSearch] = useState("");
-  const [genre, setGenre] = useState<string>("All");
-  const [platform, setPlatform] = useState<string>("All");
+  const [search, setSearchState] = useState("");
+  const [genre, setGenreState] = useState<string>("All");
+  const [platform, setPlatformState] = useState<string>("All");
+  const [sortBy, setSortByState] = useState<CatalogSortBy>("release_year_desc");
+  const [page, setPage] = useState<number>(1);
+
+  const debouncedSearch = useDebouncedValue(search, 250);
+
+  const setSearch = (value: string) => {
+    setSearchState(value);
+    setPage(1);
+  };
+
+  const setGenre = (value: string) => {
+    setGenreState(value);
+    setPage(1);
+  };
+
+  const setPlatform = (value: string) => {
+    setPlatformState(value);
+    setPage(1);
+  };
+
+  const setSortBy = (value: CatalogSortBy) => {
+    setSortByState(value);
+    setPage(1);
+  };
 
   const queryParams: GameFilterParams = {
-    search: search.trim() || undefined,
+    search: debouncedSearch.trim() || undefined,
     genre: genre !== "All" ? genre : undefined,
     platform: platform !== "All" ? platform : undefined,
+    sort_by: sortBy,
+    page,
+    page_size: CATALOG_PAGE_SIZE,
   };
 
   const clearFilters = () => {
-    setSearch("");
-    setGenre("All");
-    setPlatform("All");
+    setSearchState("");
+    setGenreState("All");
+    setPlatformState("All");
+    setSortByState("release_year_desc");
+    setPage(1);
   };
 
-  const hasActiveFilters = search.trim() !== "" || genre !== "All" || platform !== "All";
+  const hasActiveFilters =
+    search.trim() !== "" || genre !== "All" || platform !== "All" || sortBy !== "release_year_desc";
 
   return {
     search,
@@ -56,6 +89,10 @@ export function useCatalogFilters() {
     setGenre,
     platform,
     setPlatform,
+    sortBy,
+    setSortBy,
+    page,
+    setPage,
     clearFilters,
     hasActiveFilters,
     queryParams,

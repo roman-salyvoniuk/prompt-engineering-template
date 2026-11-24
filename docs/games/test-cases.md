@@ -18,7 +18,8 @@ All test cases are defined as end-to-end scenarios covering user actions, UI sta
 | **TC-AUTH-02** | Duplicate Registration Rejection | 1. Attempt to register with an email or username already present in `users.json`. | UI displays validation error ("Email or username already in use"); API returns `409 Conflict`; no duplicate record saved. |
 | **TC-AUTH-03** | Successful Login & Session | 1. Click "Log In".<br>2. Submit valid registered credentials. | User session established; navigation bar updates to show username, "My Library", and "Profile". |
 | **TC-AUTH-04** | Invalid Login Credentials | 1. Submit incorrect password or non-existent email. | UI displays error ("Invalid credentials"); access to private library routes blocked; API returns `401 Unauthorized`. |
-| **TC-AUTH-05** | Guest Route Guarding | 1. As unauthenticated visitor, navigate directly to `/library` or `/profile`. | User redirected to login modal or catalog; private data is not exposed. |
+| **TC-AUTH-05** | Guest Route Guarding | 1. As unauthenticated visitor, navigate directly to `/library` or `/profile`. | Guest guard card prompts login/signup or return to catalog; private data is not exposed. |
+| **TC-AUTH-06** | Stateless Token Persistence | 1. Issue token on login/register.<br>2. Verify token via a fresh `AuthService` instance and test tampered token rejection. | Valid HMAC-SHA256 token resolves user across service restarts; tampered token is rejected (`401` / `None`). |
 
 ---
 
@@ -32,6 +33,7 @@ All test cases are defined as end-to-end scenarios covering user actions, UI sta
 | **TC-CAT-04** | Filter by Single Genre | 1. Select genre filter (e.g. "RPG"). | Only games containing "RPG" in their genre list are displayed. |
 | **TC-CAT-05** | Filter by Platform | 1. Select platform filter (e.g. "Nintendo Switch"). | Only games available on "Nintendo Switch" are shown. |
 | **TC-CAT-06** | Combined Multi-Filter | 1. Select genre "Action" AND platform "PlayStation" AND enter search term. | Results satisfy all criteria simultaneously. |
+| **TC-CAT-07** | Paginated Sorting, Developer Search & Random Pick | 1. Call `GET /api/games/paginated?page=1&page_size=10&sort_by=title`.<br>2. Search by developer.<br>3. Call `GET /api/games/random?genre=RPG`. | Pagination metadata and alphabetical title order verified; developer search returns matches; random RPG returned (`404` if none match). |
 
 ---
 
@@ -55,7 +57,10 @@ All test cases are defined as end-to-end scenarios covering user actions, UI sta
 | **TC-LIB-03** | Change Play Status | 1. On a library game card, change status from "Want to Play" to "Playing". | Status badge updates immediately; record in `libraries.json` is updated; profile statistics recalculate. |
 | **TC-LIB-04** | Set & Update Rating | 1. Select rating (e.g. 8/10) for a game.<br>2. Modify rating to 10/10. | Rating is saved in `libraries.json`; UI displays updated score; profile average rating updates. |
 | **TC-LIB-05** | Rating Validation | 1. Submit rating outside the 1–10 range (e.g. 0, 11, or string). | Input is rejected with validation error; API returns `422 Unprocessable Entity`. |
-| **TC-LIB-06** | Remove Game from Library | 1. Click "Remove from Library" on a game card.<br>2. Confirm removal prompt. | Game is removed from `libraries.json` and disappears from My Library; game remains intact in the global catalog. |
+| **TC-LIB-06** | Remove Game from Library | 1. Click "Remove from Library" on a game card.<br>2. Confirm removal in `ConfirmDialog`. | Game is removed from `libraries.json` and disappears from My Library; game remains intact in the global catalog. |
+| **TC-LIB-07** | Explicit Rating Clear | 1. Send `PATCH /api/library/{id}` with `{"rating": null}`. | Existing rating is cleared to `null` while status and other fields remain intact. |
+| **TC-LIB-08** | Personal Notes & Favorites | 1. Send `PATCH /api/library/{id}` with `notes` and `is_favorite: true`. | Notes and favorite status persist and display in My Library & Game Details. |
+| **TC-LIB-09** | Library Export & Import | 1. Export JSON (`format=json`) and CSV (`format=csv`).<br>2. Import JSON with `skip_existing` and `overwrite` strategies. | Export payloads contain all entries; import counts (`imported_count`, `updated_count`, `skipped_count`) match and uphold tenant isolation. |
 
 ---
 
@@ -66,6 +71,7 @@ All test cases are defined as end-to-end scenarios covering user actions, UI sta
 | **TC-PROF-01** | Accurate Stat Counters | 1. User has 2 Want to Play, 1 Playing, 2 Completed games.<br>2. Navigate to Profile. | Dashboard displays: Total = 5, Want to Play = 2, Playing = 1, Completed = 2. |
 | **TC-PROF-02** | Average Rating Calculation | 1. User rates two games: 8 and 10.<br>2. Check profile average rating. | Displays average of 9.0; unrated games are excluded from the average calculation. |
 | **TC-PROF-03** | Real-Time Stat Synchronization | 1. Move a game from "Playing" to "Completed" in My Library.<br>2. Switch to Profile. | Playing count decrements by 1; Completed count increments by 1 without requiring page reload. |
+| **TC-PROF-04** | Enriched Analytics & Top Genres | 1. Check `/api/users/me/stats` with rated and favorited games. | `favorites_count`, `rated_count`, `completion_rate`, and `top_genres` accurately reflect user's library. |
 
 ---
 

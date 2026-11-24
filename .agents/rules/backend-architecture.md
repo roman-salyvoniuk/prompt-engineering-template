@@ -1,7 +1,7 @@
 ---
 description: "Architectural boundaries, strict layering and dependency injection rules for the FastAPI backend."
 trigger: glob
-globs: ["backend/**"]
+globs: "backend/**"
 ---
 # Backend Architecture Boundaries
 

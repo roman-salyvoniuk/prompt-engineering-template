@@ -15,15 +15,15 @@ export function ThemeToggle({ className = "", showLabel = false }: ThemeTogglePr
       variant="ghost"
       size="sm"
       onClick={toggleTheme}
-      className={`relative h-9 px-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer ${className}`}
+      className={`relative h-9 px-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted ${className}`}
       title={isDark ? "Switch to light theme" : "Switch to dark theme"}
       aria-label="Toggle theme"
     >
       <div className="relative flex items-center justify-center h-4 w-4">
         {isDark ? (
-          <Sun className="h-4 w-4 text-amber-400 rotate-0 scale-100 transition-all duration-300" />
+          <Sun className="h-4 w-4 text-primary" />
         ) : (
-          <Moon className="h-4 w-4 text-indigo-500 rotate-0 scale-100 transition-all duration-300" />
+          <Moon className="h-4 w-4 text-foreground/80" />
         )}
       </div>
       {showLabel && (

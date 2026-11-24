@@ -3,6 +3,9 @@ import { API_BASE_URL } from "@/lib/config";
 import type {
   AddLibraryEntryRequest,
   LibraryEntry,
+  LibraryExportResponse,
+  LibraryImportRequest,
+  LibraryImportResult,
   PlayStatus,
   UpdateLibraryEntryRequest,
   UserStats,
@@ -58,6 +61,23 @@ export const libraryApi = createApi({
       }),
       invalidatesTags: ["Library", "Stats"],
     }),
+    exportLibraryJson: builder.query<LibraryExportResponse, void>({
+      query: () => "/library/export?format=json",
+    }),
+    exportLibraryCsv: builder.query<string, void>({
+      query: () => ({
+        url: "/library/export?format=csv",
+        responseHandler: "text",
+      }),
+    }),
+    importLibrary: builder.mutation<LibraryImportResult, LibraryImportRequest>({
+      query: (body) => ({
+        url: "/library/import",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Library", "Stats"],
+    }),
     getUserStats: builder.query<UserStats, void>({
       query: () => "/users/me/stats",
       providesTags: ["Stats"],
@@ -70,5 +90,8 @@ export const {
   useAddToLibraryMutation,
   useUpdateLibraryEntryMutation,
   useRemoveFromLibraryMutation,
+  useLazyExportLibraryJsonQuery,
+  useLazyExportLibraryCsvQuery,
+  useImportLibraryMutation,
   useGetUserStatsQuery,
 } = libraryApi;

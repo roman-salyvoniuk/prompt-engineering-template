@@ -1,7 +1,7 @@
 ---
 description: "Architectural boundaries, state management and component separation rules for the React frontend."
 trigger: glob
-globs: ["frontend/**"]
+globs: "frontend/**"
 ---
 # Frontend Architecture Boundaries
 

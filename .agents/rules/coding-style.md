@@ -1,7 +1,7 @@
 ---
 description: "Coding style, typing conventions, and quality standards for Python backend and TypeScript/React frontend."
 trigger: glob
-globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+globs: "**/*.py,**/*.ts,**/*.tsx,**/*.js,**/*.jsx"
 ---
 # Coding Style & Quality Guidelines
 

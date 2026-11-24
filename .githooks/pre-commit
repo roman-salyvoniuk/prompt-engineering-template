@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+# Git pre-commit hook: runs Backend (Ruff, Mypy) & Frontend (Oxlint, Prettier, TypeScript) quality checks.
+
+echo "[Git Pre-Commit] Running GameLibrary Quality Gate (Linter, Formatter, Type Checker)..."
+uv run python .agents/scripts/quality_checks.py
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -ne 0 ]; then
+  echo "[Git Pre-Commit] Commit blocked: please fix lint, formatting, or type errors first."
+  exit 1
+fi
+
+echo "[Git Pre-Commit] All checks passed!"
+exit 0
